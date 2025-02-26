@@ -98,28 +98,26 @@ def analyze_pcapng(pcapng_file):
     # calculate statistics for packet sizes
     pkt_sizes = data['packet_sizes']
     if pkt_sizes:
-        data['statistics']['avg_pkt_size'] = statistics.mean(pkt_sizes)
-        data['statistics']['median_pkt_size'] = statistics.median(pkt_sizes)
-        data['statistics']['max_pkt_size'] = max(pkt_sizes)
-        data['statistics']['min_pkt_size'] = min(pkt_sizes)
-        data['statistics']['std_pkt_size'] = statistics.pstdev(pkt_sizes) if len(pkt_sizes) > 1 else 0.0
+        data['statistics']['Average Packet Size'] = statistics.mean(pkt_sizes)
+        data['statistics']['Median Packet Size'] = statistics.median(pkt_sizes)
+        data['statistics']['Max Packet Size'] = max(pkt_sizes)
+        data['statistics']['STD Packet Size'] = statistics.pstdev(pkt_sizes) if len(pkt_sizes) > 1 else 0.0
     else:
-        data['statistics']['avg_pkt_size'] = 0
-        data['statistics']['median_pkt_size'] = 0
-        data['statistics']['max_pkt_size'] = 0
-        data['statistics']['min_pkt_size'] = 0
-        data['statistics']['std_pkt_size'] = 0
+        data['statistics']['Average Packet Size'] = 0
+        data['statistics']['Median Packet Size'] = 0
+        data['statistics']['Max Packet Size'] = 0
+        data['statistics']['STD Packet Size'] = 0
 
     # calculate statistics for time diff
     time_diff = [td for td in data['time_diff']]
     if time_diff:
-        data['statistics']['avg_time_diff'] = statistics.mean(time_diff)
-        data['statistics']['median_time_diff'] = statistics.median(time_diff)
-        data['statistics']['std_time_diff'] = statistics.pstdev(time_diff) if len(time_diff) > 1 else 0.0
+        data['statistics']['Average Time Difference Between Packets'] = statistics.mean(time_diff)
+        data['statistics']['Median Time Difference Between Packets'] = statistics.median(time_diff)
+        data['statistics']['STD Time Difference Between Packets'] = statistics.pstdev(time_diff) if len(time_diff) > 1 else 0.0
     else:
-        data['statistics']['avg_time_diff'] = 0
-        data['statistics']['median_time_diff'] = 0
-        data['statistics']['std_time_diff'] = 0
+        data['statistics']['Average Time Difference Between Packets'] = 0
+        data['statistics']['Median Time Difference Between Packets'] = 0
+        data['statistics']['STD Time Difference Between Packets'] = 0
 
     return data
 
@@ -128,10 +126,11 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
 
     os.makedirs(output_dir, exist_ok=True)
 
-    fig_size = (12, 6)
+    plot_fig_size = (12, 6)
+    sub_plot_fig_size = (24, 12)
 
     # 1. packet Size
-    plt.figure(figsize=fig_size)
+    plt.figure(figsize=plot_fig_size)
     for i, file in enumerate(file_names):  # run over the data with the indexes
         plt.hist(pcapng_results[i]['packet_sizes'], bins=30, alpha=0.5, label=file)
     plt.title('Packet Size')
@@ -142,7 +141,7 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
     plt.close()
 
     # 2. time difference between packets
-    plt.figure(figsize=fig_size)
+    plt.figure(figsize=plot_fig_size)
     time_diff_data = [pcapng_results[i]['time_diff'] for i in range(len(file_names))]
     plt.boxplot(time_diff_data, tick_labels=file_names)
 
@@ -153,7 +152,7 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
     plt.close()
 
     # 3. protocols count
-    plt.figure(figsize=fig_size)
+    plt.figure(figsize=plot_fig_size)
 
     # collect all protocols
     protocol_names = set()
@@ -192,8 +191,8 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
     plt.savefig(f'{output_dir}/Protocols Count.png')
     plt.close()
 
-    # 4. flow count ---
-    plt.figure(figsize=fig_size)
+    # 4. flow count
+    plt.figure(figsize=plot_fig_size)
 
     flow_counts = []
     for i in range(len(file_names)):
@@ -214,37 +213,34 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
     plt.savefig(f'{output_dir}/Flow Count.png')
     plt.close()
 
-    # 5. average packet size
-    plt.figure(figsize=fig_size)
-    avg_pkt_sizes = [pcapng_results[i]['statistics']['avg_pkt_size'] for i in range(len(file_names))]
+    # 5-6. statistics
+    statistics_keys = {
+        'Packet Size Statistics':
+            ['Average Packet Size',
+             'Median Packet Size',
+             'Max Packet Size',
+             'STD Packet Size'],
+        'Time Difference Between Packets Statistics':
+            ['Average Time Difference Between Packets',
+             'Median Time Difference Between Packets',
+             'STD Time Difference Between Packets']
+    }
 
-    plt.xticks(rotation=10)
-    plt.bar(file_names, avg_pkt_sizes, color='orange', alpha=0.7)
-
-    # add labels on the bars
-    for i, value in enumerate(avg_pkt_sizes):  # run over the data with the indexes
-        plt.text(i, value, f'{value:.2f}', ha='center', va='bottom', fontsize=10)
-
-    plt.xticks(rotation=10)
-    plt.title('Average Packet Size')
-    plt.ylabel('Bytes')
-    plt.savefig(f'{output_dir}/Average Packet Size.png')
-    plt.close()
-
-    # 6. average time diff
-    plt.figure(figsize=fig_size)
-    avg_time_diff = [pcapng_results[i]['statistics']['avg_time_diff'] for i in range(len(file_names))]
-    plt.bar(file_names, avg_time_diff, color='green', alpha=0.7)
-
-    # add labels on the bars
-    for i, value in enumerate(avg_time_diff):
-        plt.text(i, value, f'{value:.6f}', ha='center', va='bottom', fontsize=10)
-
-    plt.xticks(rotation=10)
-    plt.title('Average Time Difference Between Packets')
-    plt.ylabel('Seconds')
-    plt.savefig(f'{output_dir}/Average Time Difference Between Packets.png')
-    plt.close()
+    for plot_file_name, keys in statistics_keys.items():
+        keys_copy = keys.copy()
+        plt.figure(figsize=sub_plot_fig_size)
+        for plot_num in range(len(keys)):
+            key = keys_copy.pop(0)
+            plt.subplot(2, 2, plot_num + 1)
+            current_statistics = [pcapng_results[i]['statistics'][key] for i in range(len(file_names))]
+            plt.bar(file_names, current_statistics, color='green', alpha=0.7)
+            # add labels on the bars
+            for i, value in enumerate(current_statistics):
+                plt.text(i, value, f'{value:.6f}', ha='center', va='bottom', fontsize=10)
+            plt.xticks(rotation=10)
+            plt.title(key)
+        plt.savefig(f'{output_dir}/{plot_file_name}.png')
+        plt.close()
 
 
 def main():

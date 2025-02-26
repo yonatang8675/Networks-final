@@ -1,5 +1,1 @@
-captures/Chrome-CNN.pcapng
-captures/safari-CNN.pcapng
-captures/FaceTime.pcapng
-captures/Spotify.pcapng
-captures/YouTube.pcapng
+example.pcapng
