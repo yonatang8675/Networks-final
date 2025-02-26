@@ -13,7 +13,7 @@ def analyze_pcapng(pcapng_file):
         'time_diff': [],
         'flows': {},
         'protocol_counts': {},
-        'stats': {}
+        'statistics': {}
     }
 
     arrival_times = []
@@ -98,28 +98,28 @@ def analyze_pcapng(pcapng_file):
     # calculate statistics for packet sizes
     pkt_sizes = data['packet_sizes']
     if pkt_sizes:
-        data['stats']['avg_pkt_size'] = statistics.mean(pkt_sizes)
-        data['stats']['median_pkt_size'] = statistics.median(pkt_sizes)
-        data['stats']['max_pkt_size'] = max(pkt_sizes)
-        data['stats']['min_pkt_size'] = min(pkt_sizes)
-        data['stats']['std_pkt_size'] = statistics.pstdev(pkt_sizes) if len(pkt_sizes) > 1 else 0.0
+        data['statistics']['avg_pkt_size'] = statistics.mean(pkt_sizes)
+        data['statistics']['median_pkt_size'] = statistics.median(pkt_sizes)
+        data['statistics']['max_pkt_size'] = max(pkt_sizes)
+        data['statistics']['min_pkt_size'] = min(pkt_sizes)
+        data['statistics']['std_pkt_size'] = statistics.pstdev(pkt_sizes) if len(pkt_sizes) > 1 else 0.0
     else:
-        data['stats']['avg_pkt_size'] = 0
-        data['stats']['median_pkt_size'] = 0
-        data['stats']['max_pkt_size'] = 0
-        data['stats']['min_pkt_size'] = 0
-        data['stats']['std_pkt_size'] = 0
+        data['statistics']['avg_pkt_size'] = 0
+        data['statistics']['median_pkt_size'] = 0
+        data['statistics']['max_pkt_size'] = 0
+        data['statistics']['min_pkt_size'] = 0
+        data['statistics']['std_pkt_size'] = 0
 
     # calculate statistics for time diff
     time_diff = [td for td in data['time_diff']]
     if time_diff:
-        data['stats']['avg_time_diff'] = statistics.mean(time_diff)
-        data['stats']['median_time_diff'] = statistics.median(time_diff)
-        data['stats']['std_time_diff'] = statistics.pstdev(time_diff) if len(time_diff) > 1 else 0.0
+        data['statistics']['avg_time_diff'] = statistics.mean(time_diff)
+        data['statistics']['median_time_diff'] = statistics.median(time_diff)
+        data['statistics']['std_time_diff'] = statistics.pstdev(time_diff) if len(time_diff) > 1 else 0.0
     else:
-        data['stats']['avg_time_diff'] = 0
-        data['stats']['median_time_diff'] = 0
-        data['stats']['std_time_diff'] = 0
+        data['statistics']['avg_time_diff'] = 0
+        data['statistics']['median_time_diff'] = 0
+        data['statistics']['std_time_diff'] = 0
 
     return data
 
@@ -216,7 +216,7 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
 
     # 5. average packet size
     plt.figure(figsize=fig_size)
-    avg_pkt_sizes = [pcapng_results[i]['stats']['avg_pkt_size'] for i in range(len(file_names))]
+    avg_pkt_sizes = [pcapng_results[i]['statistics']['avg_pkt_size'] for i in range(len(file_names))]
 
     plt.xticks(rotation=10)
     plt.bar(file_names, avg_pkt_sizes, color='orange', alpha=0.7)
@@ -233,7 +233,7 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
 
     # 6. average time diff
     plt.figure(figsize=fig_size)
-    avg_time_diff = [pcapng_results[i]['stats']['avg_time_diff'] for i in range(len(file_names))]
+    avg_time_diff = [pcapng_results[i]['statistics']['avg_time_diff'] for i in range(len(file_names))]
     plt.bar(file_names, avg_time_diff, color='green', alpha=0.7)
 
     # add labels on the bars

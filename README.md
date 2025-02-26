@@ -1,4 +1,4 @@
-# PCAPNG Analysis and Visualization
+# PCAPNG Analysis
 
 This Python script analyzes PCAPNG files and generates graphs to visualize network traffic using **pyshark** and **matplotlib**.
 
