@@ -3,172 +3,149 @@ import matplotlib.pyplot as plt
 import statistics
 import os
 
-def get_tls_keylog_file(pcapng_file):
-    """
-    Return the path to the TLS key log file in the TLS_keys directory
-    based on the .pcapng filename. Adjust logic as needed if your
-    naming scheme differs.
-    """
-    base_name = os.path.basename(pcapng_file).lower()
-    if 'chrome' in base_name:
-        return 'TLS_keys/ChromeTLS.log'
-    elif 'microsoftedge' in base_name:
-        return 'TLS_keys/MicrosoftEdgeTLS.log'
-    elif 'spotify' in base_name:
-        return 'TLS_keys/SpotifyTLS.log'
-    elif 'youtube' in base_name:
-        return 'TLS_keys/YoutubeTLS.log'
-    elif 'zoom' in base_name:
-        return 'TLS_keys/ZoomTLS.log'
-    else:
-        return None
+# for working with jupiter
+import nest_asyncio
+nest_asyncio.apply()
 
 
-def analyze_pcapng(pcapng_file, tls_key_file=None):
-
+def analyze_pcapng(capture_file, tls_key_file):
     """
     Analyze the given pcapng file. If a matching TLS key file is found,
     set the SSLKEYLOGFILE environment variable to decrypt TLS traffic.
     """
-    if tls_key_file and os.path.exists(tls_key_file):
-        print(f'Analyzing {pcapng_file} with TLS key file: {tls_key_file}')
-        capture = pyshark.FileCapture(
-            pcapng_file,
-            keep_packets=False,
-            use_json=True,
-            override_prefs={'tls.keylog_file': tls_key_file},
-            include_raw=False,
-            only_summaries=False,
-            display_filter="ip or ipv6 or tcp or tls or udp or "
-                           "tcp.flags or tcp.analysis or "
-                           "tcp.port==443 or tcp.port==80 or udp.port==443 or "
-                           "quic or http or http3 or dns"
-        )
-    else:
-        print(f'Analyzing {pcapng_file} (No TLS key file found)')
-        capture = pyshark.FileCapture(
-            pcapng_file,
-            keep_packets=False,
-            use_json=True,
-            include_raw=False,
-            only_summaries=False
-        )
-    data = {
-        'ttl values': [],
-        'packet_sizes': [],
-        'time_diff': [],
-        'flows': {},
-        'protocol_counts': {},
-        'statistics': {},
-        # TLS header field values
-        'tls_record_length': [],
-        'tls_content_type': [],
-        'tls_version': [],
-        # IP header field values (we'll collect IP ID for IPv4)
-        'ip_ids': [],
-        # TCP header field values
-        'tcp_window_sizes': [],
-        'tcp_flags': [],
-    }
 
-    arrival_times = []
+    if not os.path.isfile(capture_file):
+        raise ValueError(f'The given pcapng file "{capture_file}" does not exist.')
 
-    for packet in capture:
-        try:
-            # Packet size
-            pkt_size = int(packet.length)
-            data['packet_sizes'].append(pkt_size)
+    if not os.path.isfile(tls_key_file):
+        raise ValueError(f'The given TLS key file "{tls_key_file}" does not exist.')
 
-            # Packet time
-            sniff_time = packet.sniff_time
-            arrival_times.append(sniff_time)
+    print(f'Analyzing {capture_file} with TLS key file: {tls_key_file}')
 
-            # IP layer: IPv4 and IPv6; also collect IP ID if available for IPv4.
-            if hasattr(packet, 'ip'):
-                ip_version = 'IPv4'
-                src_ip = packet.ip.src
-                dst_ip = packet.ip.dst
-                ttl = int(packet.ip.ttl)
-                data['ttl values'].append(ttl)
-                if hasattr(packet.ip, 'id'):
-                    try:
-                        ip_id = int(packet.ip.id)
-                        data['ip_ids'].append(ip_id)
-                    except Exception:
-                        pass
-            elif hasattr(packet, 'ipv6'):
-                ip_version = 'IPv6'
-                src_ip = packet.ipv6.src
-                dst_ip = packet.ipv6.dst
-                ttl = int(packet.ipv6.ttl)
-                data['ttl values'].append(ttl)
-            else:
-                continue
+    with pyshark.FileCapture(capture_file,
+                             use_json=True,
+                             display_filter="ip or ipv6 or tcp or tls or udp or quic or http or http3 or dns",
+                             override_prefs={
+                                 'tls.keylog_file': tls_key_file
+                             }) as capture:
 
-            # Transport layer detection and TCP-specific processing
-            if hasattr(packet, 'quic'):
-                transport = 'QUIC'
-            elif hasattr(packet, 'tcp'):
-                transport = 'TCP'
-                # TCP flags
-                if hasattr(packet.tcp, 'flags'):
-                    data['tcp_flags'].append(packet.tcp.flags)
-                # TCP window size
-                if hasattr(packet.tcp, 'window_size_value'):
-                    try:
+        data = {
+            'TTL_HLim values': [],
+            'packet_sizes': [],
+            'time_diff': [],
+            'flows': {},
+            'protocol_counts': {},
+            'statistics': {},
+            'tls_record_length': [],
+            'tls_content_type': [],
+            'tls_version': [],
+            'ip_ids': [],
+            'tcp_window_sizes': [],
+            'tcp_flags': [],
+        }
+        arrival_times = []
+
+        for packet in capture:
+            try:
+                # Packet size
+                pkt_size = int(packet.length)
+                data['packet_sizes'].append(pkt_size)
+
+                # Packet time
+                sniff_time = packet.sniff_time
+                arrival_times.append(sniff_time)
+
+                # IP layer: IPv4 and IPv6
+                if hasattr(packet, 'ip'):
+                    ip_version = 'IPv4'
+                    src_ip = packet.ip.src
+                    dst_ip = packet.ip.dst
+                    ttl = int(packet.ip.ttl)
+                    data['TTL_HLim values'].append(ttl)
+
+                elif hasattr(packet, 'ipv6'):
+                    ip_version = 'IPv6'
+                    src_ip = packet.ipv6.src
+                    dst_ip = packet.ipv6.dst
+                    hlim = int(packet.ipv6.hlim)
+                    data['TTL_HLim values'].append(hlim)
+
+                else:
+                    continue
+
+                # Transport layer
+                if hasattr(packet, 'quic'):
+                    transport = 'QUIC'
+
+                elif hasattr(packet, 'tcp'):
+                    transport = 'TCP'
+
+                    # TCP flags
+                    if hasattr(packet.tcp, 'flags'):
+                        try:
+                            tcp_flags = parse_tcp_flags(packet.tcp.flags)
+                            data['tcp_flags'].append(tcp_flags)
+                        except Exception as e:
+                            print(e)
+                            continue
+
+                    # TCP window size
+                    if hasattr(packet.tcp, 'window_size_value'):
                         window_size = int(packet.tcp.window_size_value)
                         data['tcp_window_sizes'].append(window_size)
-                    except Exception:
-                        pass
-            elif hasattr(packet, 'udp'):
-                transport = 'UDP'
-            else:
-                transport = packet.highest_layer
 
-            # Count protocols
-            if transport not in data['protocol_counts']:
-                data['protocol_counts'][transport] = 0
-            data['protocol_counts'][transport] += 1
+                elif hasattr(packet, 'udp'):
+                    transport = 'UDP'
 
-            # Inside your packet loop
-            if hasattr(packet, 'tls') or hasattr(packet, 'ssl'):
-                tls_layer = packet.tls if hasattr(packet, 'tls') else packet.ssl
-                if hasattr(tls_layer, 'record_content_type'):
-                    data['tls_content_type'].append(tls_layer.record_content_type)
-                if hasattr(tls_layer, 'record_version'):
-                    data['tls_version'].append(tls_layer.record_version)
-                if hasattr(tls_layer, 'record_length'):
-                    try:
-                        rec_len = int(tls_layer.record_length)
-                        data['tls_record_length'].append(rec_len)
-                    except Exception:
-                        pass
+                else:
+                    continue
 
-            # Handle DNS protocol counting.
-            if hasattr(packet, 'dns'):
-                if 'DNS' not in data['protocol_counts']:
-                    data['protocol_counts']['DNS'] = 0
-                data['protocol_counts']['DNS'] += 1
+                # Count protocols
+                if transport not in data['protocol_counts']:
+                    data['protocol_counts'][transport] = 0
+                data['protocol_counts'][transport] += 1
 
-            # Flow: (ip version, src ip, dst ip, src port, dst port, transport)
-            if hasattr(packet, transport.lower()):
-                layer = getattr(packet, transport.lower())
-                src_port = getattr(layer, 'srcport', 'unknown')
-                dst_port = getattr(layer, 'dstport', 'unknown')
-            else:
-                src_port = 'unknown'
-                dst_port = 'unknown'
+                # TLS
+                if hasattr(packet, 'tls') or hasattr(packet, 'ssl'):
+                    tls_layer = packet.tls if hasattr(packet, 'tls') else packet.ssl
+                    if hasattr(tls_layer, 'data'):
+                        try:
+                            content_type, version, record_length = parse_tls_header(tls_layer.data)
+                        except Exception as e:
+                            print(e)
+                            continue
 
-            flow_key = (ip_version, src_ip, dst_ip, src_port, dst_port, transport)
-            if flow_key not in data['flows']:
-                data['flows'][flow_key] = {'packet_count': 0, 'byte_count': 0}
-            data['flows'][flow_key]['packet_count'] += 1
-            data['flows'][flow_key]['byte_count'] += pkt_size
+                        data['tls_content_type'].append(content_type)
+                        data['tls_version'].append(version)
+                        data['tls_record_length'].append(record_length)
 
-        except AttributeError:
-            continue
+                    if 'TLS' not in data['protocol_counts']:
+                        data['protocol_counts']['TLS'] = 0
+                    data['protocol_counts']['TLS'] += 1
 
-    capture.close()
+                # Handle DNS protocol counting.
+                if hasattr(packet, 'dns'):
+                    if 'DNS' not in data['protocol_counts']:
+                        data['protocol_counts']['DNS'] = 0
+                    data['protocol_counts']['DNS'] += 1
+
+                # Flow: (ip version, src ip, dst ip, src port, dst port, transport)
+                if hasattr(packet, transport.lower()):
+                    layer = getattr(packet, transport.lower())
+                    src_port = getattr(layer, 'srcport', 'unknown')
+                    dst_port = getattr(layer, 'dstport', 'unknown')
+                else:
+                    src_port = 'unknown'
+                    dst_port = 'unknown'
+
+                flow_key = (ip_version, src_ip, dst_ip, src_port, dst_port, transport)
+                if flow_key not in data['flows']:
+                    data['flows'][flow_key] = {'packet_count': 0, 'byte_count': 0}
+                data['flows'][flow_key]['packet_count'] += 1
+                data['flows'][flow_key]['byte_count'] += pkt_size
+
+            except AttributeError:
+                continue
 
     # Calculate inter-packet time differences.
     if len(arrival_times) > 1:
@@ -218,20 +195,18 @@ def analyze_pcapng(pcapng_file, tls_key_file=None):
         data['statistics']['Max Packet Size'] = 0
         data['statistics']['STD Packet Size'] = 0
 
-    # --- Compute TTL Statistics ---
-    ttls = data['ttl values']
-    if ttls:
-        data['statistics']['Average TTL'] = statistics.mean(ttls)
-        data['statistics']['Median TTL'] = statistics.median(ttls)
-        data['statistics']['Min TTL'] = min(ttls)
-        data['statistics']['Max TTL'] = max(ttls)
-        data['statistics']['STD TTL'] = statistics.pstdev(ttls) if len(ttls) > 1 else 0.0
+    # --- Compute TTL_HLim Statistics ---
+    ttls_hlims = data['TTL_HLim values']
+    if ttls_hlims:
+        data['statistics']['Average TTL_HLim'] = statistics.mean(ttls_hlims)
+        data['statistics']['Median TTL_HLim'] = statistics.median(ttls_hlims)
+        data['statistics']['Max TTL_HLim'] = max(ttls_hlims)
+        data['statistics']['STD TTL_HLim'] = statistics.pstdev(ttls_hlims) if len(ttls_hlims) > 1 else 0.0
     else:
-        data['statistics']['Average TTL'] = 0
-        data['statistics']['Median TTL'] = 0
-        data['statistics']['Min TTL'] = 0
-        data['statistics']['Max TTL'] = 0
-        data['statistics']['STD TTL'] = 0
+        data['statistics']['Average TTL_HLim'] = 0
+        data['statistics']['Median TTL_HLim'] = 0
+        data['statistics']['Max TTL_HLim'] = 0
+        data['statistics']['STD TTL_HLim'] = 0
 
     # --- Compute IP ID Statistics (for IPv4) ---
     if data['ip_ids']:
@@ -281,6 +256,63 @@ def analyze_pcapng(pcapng_file, tls_key_file=None):
     return data
 
 
+def parse_tcp_flags(flags):
+    tcp_flags_map = {
+        '0x0000': 'No Flags',
+        '0x0001': 'FIN',
+        '0x0002': 'SYN',
+        '0x0003': 'FIN+SYN',
+        '0x0004': 'RST',
+        '0x0005': 'RST+FIN',
+        '0x0008': 'PSH',
+        '0x0009': 'FIN+PSH',
+        '0x000A': 'SYN+PSH',
+        '0x000C': 'RST+PSH',
+        '0x0010': 'ACK',
+        '0x0011': 'FIN+ACK',
+        '0x0012': 'SYN+ACK',
+        '0x0014': 'RST+ACK',
+        '0x0018': 'PSH+ACK'
+    }
+
+    try:
+        flags = tcp_flags_map[flags]
+    except KeyError:
+        raise KeyError(f'Can\'t parse TCP flags from data: {flags}')
+
+    return flags
+
+
+def parse_tls_header(tls_data):
+    hex_bytes = tls_data.split(':')
+
+    if len(hex_bytes) < 5:
+        raise KeyError(f'Can\'t parse TLS header - too small')
+
+    content_type = hex_bytes[0]
+    version = f'{hex_bytes[1]} {hex_bytes[2]}'
+    record_length = int(f'{hex_bytes[3]}{hex_bytes[4]}', 16)
+
+    content_types = {'14': 'Change Cipher Spec',
+                     '15': 'Alert',
+                     '16': 'Handshake',
+                     '17': 'Application Data'}
+
+    versions = {'03 00': 'SSL 3.0',
+                '03 01': 'TLS 1.0',
+                '03 02': 'TLS 1.1',
+                '03 03': 'TLS 1.2',
+                '03 04': 'TLS 1.3'}
+
+    try:
+        content_type = content_types[content_type]
+        version = versions[version]
+    except KeyError:
+        raise KeyError(f'Can\'t parse TLS header')
+
+    return content_type, version, record_length
+
+
 def plot_results(pcapng_results, file_names, output_dir='output'):
     os.makedirs(output_dir, exist_ok=True)
     plot_fig_size = (12, 6)
@@ -300,7 +332,7 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
     # Plot Time Difference Boxplot
     plt.figure(figsize=plot_fig_size)
     time_diff_data = [pcapng_results[i]['time_diff'] for i in range(len(file_names))]
-    plt.boxplot(time_diff_data, labels=file_names)
+    plt.boxplot(time_diff_data, tick_labels=file_names)
     plt.xticks(rotation=10)
     plt.title('Time Difference Between Packets')
     plt.ylabel('Time (sec)')
@@ -366,12 +398,11 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
             'Median Time Difference Between Packets',
             'STD Time Difference Between Packets'
         ],
-        'TTL Statistics': [
-            'Average TTL',
-            'Median TTL',
-            'Min TTL',
-            'Max TTL',
-            'STD TTL'
+        'TTL_HLim Statistics': [
+            'Average TTL_HLim',
+            'Median TTL_HLim',
+            'Max TTL_HLim',
+            'STD TTL_HLim'
         ],
         'TCP Window Size Statistics': [
             'Average Window Size',
@@ -445,31 +476,39 @@ def plot_results(pcapng_results, file_names, output_dir='output'):
 
 def main():
     try:
-        with open('pcapng_files.txt') as f:
-            pcapng_files = f.read().splitlines()
-    except FileNotFoundError as e:
-        print(f"Error: pcapng_files.txt not found. {e}")
+        with open('Captures_files.txt') as f:
+            captures_files = f.read().splitlines()
+
+        with open('TLS_keys_files.txt') as f:
+            tls_keys_files = f.read().splitlines()
+
+        if len(captures_files) != len(tls_keys_files):
+            raise ValueError('Number of captures_files and tls_keys_files do not match')
+
+    except Exception as e:
+        print(e)
         return
 
-    pcapng_results = []
-    for pcapng_file in pcapng_files:
+    analyzing_results = []
+    for i in range(len(captures_files)):
         try:
-            tls_key_file = get_tls_keylog_file(pcapng_file)
-            results = analyze_pcapng(pcapng_file, tls_key_file)
-            pcapng_results.append(results)
+            results = analyze_pcapng(captures_files[i], tls_keys_files[i])
+            analyzing_results.append(results)
+
         except Exception as e:
-            print(f"Error processing {pcapng_file}: {e}")
+            print(e)
             continue
 
-    pcapng_names = [os.path.basename(p) for p in pcapng_files]
+    captures_names = [path.split('/')[-1] for path in captures_files]
     try:
-        plot_results(pcapng_results, pcapng_names)
+        plot_results(analyzing_results, captures_names)
     except Exception as e:
         print(f"Error plotting results: {e}")
     except KeyboardInterrupt:
         print("\nBye!")
 
     print("Finished Analyzing, Statistic Photos are in the output directory (:")
+
 
 if __name__ == '__main__':
     main()

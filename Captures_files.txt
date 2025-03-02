@@ -1,0 +1,5 @@
+Captures/ChromeRecording.pcapng
+Captures/MicrosoftEdgeRecording.pcapng
+Captures/SpotifyRecording.pcapng
+Captures/YouTubeRecording.pcapng
+Captures/ZoomRecording.pcapng
