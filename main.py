@@ -10,7 +10,7 @@ nest_asyncio.apply()
 debug_level = False
 
 
-def process_capture(capture_file, tls_key_file):
+def process_capture(capture_file, tls_key_file=None):
     """
     Processes a PCAPNG file using its TLS key file by analyzing the capture and computing statistics.
 
@@ -26,7 +26,7 @@ def process_capture(capture_file, tls_key_file):
     return data
 
 
-def analyze_capture(capture_file, tls_key_file):
+def analyze_capture(capture_file, tls_key_file=None):
     """
     Analyze a PCAPNG file using a TLS key file for optional TLS decryption.
 
@@ -41,14 +41,17 @@ def analyze_capture(capture_file, tls_key_file):
     if not os.path.isfile(capture_file):
         raise ValueError(f'The given pcapng file "{capture_file}" does not exist.')
 
-    if not os.path.isfile(tls_key_file):
+    if tls_key_file is not None and not os.path.isfile(tls_key_file):
         raise ValueError(f'The given TLS key file "{tls_key_file}" does not exist.')
 
     print(f'Analyzing {capture_file} with TLS key file: {tls_key_file}')
 
+    override_prefs = {}
+    if tls_key_file is not None:
+        override_prefs['tls.keylog_file'] = tls_key_file
     with pyshark.FileCapture(capture_file, use_json=True,
                              display_filter="ip or ipv6 or tcp or tls or udp or quic or http or http3 or dns",
-                             override_prefs={'tls.keylog_file': tls_key_file}) as capture:
+                             override_prefs=override_prefs) as capture:
         data = {
             'TTL_HLim values': [],
             'packet_sizes': [],
@@ -65,13 +68,6 @@ def analyze_capture(capture_file, tls_key_file):
 
         for packet in capture:
             try:
-                # Packet size
-                pkt_size = int(packet.length)
-                data['packet_sizes'].append(pkt_size)
-
-                # Packet time
-                sniff_time = packet.sniff_time
-                arrival_times.append(sniff_time)
 
                 # IP layer: IPv4 and IPv6
                 if hasattr(packet, 'ip'):
@@ -171,6 +167,14 @@ def analyze_capture(capture_file, tls_key_file):
                 else:
                     src_port = 'unknown'
                     dst_port = 'unknown'
+
+                # Packet size
+                pkt_size = int(packet.length)
+                data['packet_sizes'].append(pkt_size)
+
+                # Packet time
+                sniff_time = packet.sniff_time
+                arrival_times.append(sniff_time)
 
                 # update flow data
                 flow_key = (ip_version, src_ip, dst_ip, src_port, dst_port, transport)
@@ -538,7 +542,7 @@ def plot_statistics_subplot_bars(plot_fig_size, analyzing_results, plot_group, p
         current_values = [res['statistics'].get(key, 0) for res in analyzing_results]
         plt.bar(file_names, current_values, alpha=0.7)
         for j, value in enumerate(current_values):
-            plt.text(j, value, f'{value:.2f}', ha='center', va='bottom', fontsize=10)
+            plt.text(j, value, f'{value:.5f}', ha='center', va='bottom', fontsize=10)
         plt.xticks(rotation=10)
         plt.title(key)
     plt.tight_layout()
@@ -586,4 +590,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+
+    data = process_capture('whatsApp.pcapng')
+    plot_results([data], ['whatsApp.pcapng'])
+    # main()
