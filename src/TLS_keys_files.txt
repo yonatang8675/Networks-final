@@ -2,4 +2,4 @@ TLS_keys/ChromeTLS.log
 TLS_keys/MicrosoftEdgeTLS.log
 TLS_keys/SpotifyTLS.log
 TLS_keys/YouTubeTLS.log
-TLS_keys/ZoomTLS.log
+TLS_keys/GoogleMeetTLS.log
