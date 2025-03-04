@@ -591,6 +591,4 @@ def main():
 
 if __name__ == '__main__':
 
-    data = process_capture('whatsApp.pcapng')
-    plot_results([data], ['whatsApp.pcapng'])
-    # main()
+    main()
